@@ -1,0 +1,73 @@
+[package]
+name = "vt-tts"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Standalone voice-cloning TTS engine for Video Translator — pure Rust + Candle"
+
+[lib]
+name = "vt_tts"
+path = "src/lib.rs"
+
+[[bin]]
+name = "vt-tts"
+path = "src/main.rs"
+
+[features]
+default = ["cpu"]
+# CPU inference (always available)
+cpu = ["candle-core", "candle-nn", "candle-transformers"]
+# Apple Accelerate (BLAS) for CPU — significantly speeds up matmul/conv1d on macOS
+accelerate = ["candle-core/accelerate", "candle-nn/accelerate"]
+# Apple Silicon Metal GPU acceleration
+metal = ["candle-core/metal", "candle-nn/metal", "candle-transformers/metal"]
+# CUDA GPU acceleration (Linux/NVIDIA)
+cuda = ["candle-core/cuda", "candle-nn/cuda", "candle-transformers/cuda"]
+# HuggingFace Hub auto-download
+hub = ["dep:hf-hub"]
+# CLI features
+cli = ["dep:clap", "dep:indicatif"]
+
+[dependencies]
+# ML framework — Candle (pure Rust, no Python/ONNX)
+candle-core = { version = "0.9", optional = true }
+candle-nn = { version = "0.9", optional = true }
+candle-transformers = { version = "0.9", optional = true }
+
+# Audio processing
+hound = { workspace = true }
+rustfft = "6.2"
+
+# Tokenization
+tokenizers = "0.22"
+
+# Model loading
+safetensors = "0.8"
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Utilities
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+rayon = { workspace = true }
+half = "2.7"
+rand = "0.8"
+
+# CLI (optional)
+clap = { workspace = true, optional = true }
+indicatif = { workspace = true, optional = true }
+
+# HuggingFace Hub (optional auto-download)
+hf-hub = { version = "0.4", default-features = false, features = ["ureq"], optional = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+proptest = "1.5"
+criterion = { workspace = true }
+
+[[bench]]
+name = "tts_bench"
+harness = false
+required-features = ["metal"]

@@ -1,0 +1,225 @@
+# Video Translator 配置文件
+# 生成命令: vt config --output config.toml
+#
+# 配置加载优先级: 命令行参数 > 配置文件 > 默认值
+# 所有 AI 模型均从 ModelScope 下载后在本地运行，无需任何 API Key
+
+# ─── ASR（语音识别）配置 ─────────────────────────────────
+[asr]
+# Whisper 模型名称（从魔搭 ModelScope 下载）
+# 可选: whisper-tiny (77MB), whisper-small (487MB),
+#       whisper-large-v3-turbo (1.6GB), whisper-large-v3-turbo-q5 (874MB)
+model = "whisper-large-v3-turbo"
+# 是否启用 Metal 硬件加速（macOS M 系列芯片）
+use_metal = true
+# 源视频语言代码（en = 英文）
+language = "en"
+
+# ─── TTS（语音合成）配置 ─────────────────────────────────
+[tts]
+# TTS 引擎类型（"say" = macOS 内置语音，"kokoro" = Kokoro-82M ONNX）
+# kokoro 引擎需下载模型，不可用时自动降级到 say
+engine = "say"
+# 语音合成语速倍率（1.0 = 正常，0.5 = 半速，2.0 = 双倍速）
+speed = 1.0
+# 音调倍率（1.0 = 不变，0.8 = 降低，1.2 = 升高）
+pitch = 1.0
+# 音量倍率（1.0 = 不变，0.0 = 静音，2.0 = 双倍）
+volume = 1.0
+# 音色 ID（内置: tingting, meijia, sinji [女], zhiming, weiqiang, haoze [男]）
+voice_id = "tingting"
+# 语音音色名称（macOS `say` 命令语音，运行 `say -v '?'` 查看可用语音）
+# 推荐: Tingting (中文女声), Meijia (中文女声台湾)
+voice = "Tingting"
+# 音频采样率（16000 / 24000 / 48000，默认 24000）
+sample_rate = 24000
+# 推理设备（"cpu" 或 "metal"，当前仅影响 Kokoro 引擎）
+device = "cpu"
+# 缓存目录路径（存储已合成的音频文件）
+cache_dir = "~/.cache/video-translator/tts_cache"
+# 并行合成任务数（默认等于 CPU 核心数）
+parallel_tasks = 4
+# Kokoro 模型变体名称（如 v1.1-onnx）
+model_variant = "v1.1-onnx"
+# Kokoro ONNX 模型文件路径（可选，未指定时从缓存加载）
+# model_path = "/path/to/kokoro/model.onnx"
+# 当 Kokoro 引擎加载失败时是否回退到 macOS `say` 命令
+fallback_to_say = true
+# 是否根据视频说话人性别自动选择音色
+auto_voice_selection = false
+# 固定随机种子（确保多次合成音色一致，默认 42）
+# Kokoro 引擎使用此参数控制合成随机性，say 引擎不受影响
+seed = 42
+# 生成温度（0.0-1.0，默认 0.3）
+# 较低的温度减少生成随机性，使音色更稳定
+temperature = 0.3
+# 音色稳定性（0.0-1.0，默认 0.8）
+# 较高的值使音色在多句合成间保持一致
+stability = 0.8
+# 高频均衡器衰减量（dB，默认 -3.0）
+# 衰减 6kHz 以上的高频以减少齿音（sibilance），设为 0.0 可禁用
+eq_high_shelf_db = -3.0
+# 交叉淡入淡出时长（毫秒，默认 50）
+# 相邻音频片段衔接处的淡入淡出时长，消除拼接感
+crossfade_duration_ms = 50
+
+# ─── 翻译模块配置 ─────────────────────────────────────────
+[translation]
+# 术语表文件路径（支持 JSON 或 CSV 格式）
+# glossary_path = "./glossary.json"
+# 批量翻译大小（每批处理的最大文本数）
+batch_size = 10
+# 推理设备（"metal" 为 macOS GPU 加速，"cpu" 为纯 CPU）
+device = "metal"
+# 生成的最大 token 数
+max_tokens = 512
+# 采样温度（0.0-1.0，翻译任务建议 0.0-0.3）
+temperature = 0.3
+# 本地模型文件路径（可选，未指定时从 ModelScope 缓存加载）
+# model_path = "/path/to/model.gguf"
+# 是否启用强制术语表（翻译前对编程术语进行占位符替换，默认 true）
+# 启用后 println、format! 等编程术语会在翻译前被替换为占位符
+force_glossary = true
+# 是否启用翻译后术语校正（默认 true）
+# 启用后在翻译完成后修正错误术语（如"打印行"→"打印并换行"）
+post_correction_enabled = true
+
+# 模型来源（从 ModelScope 下载并缓存）
+# 推荐 3B 模型：M1 Pro 16GB 上 ~20-30 tok/s，翻译一条字幕仅 8-13s
+# 7B 模型在同样硬件上仅 ~10 tok/s，可能导致超时
+[translation.model_source]
+ModelScope = { repo_id = "Qwen/Qwen2.5-3B-Instruct-GGUF", revision = "master" }
+
+# ─── 流水线配置 ─────────────────────────────────────────
+[pipeline]
+# 音频分割时长（秒），用于固定时长分割模式
+segment_duration_secs = 30.0
+# 通道缓冲区大小（背压控制，防止生产者过快导致内存溢出）
+channel_capacity = 100
+# 是否使用 VAD 分割而非固定时长
+enable_vad_split = true
+
+# ─── 音频同步配置 ─────────────────────────────────────────
+[audio_sync]
+# TTS 音频与原视频时间轴的对齐策略
+# - trim:      截断超长 TTS 音频，不足补静音（最快，可能丢失内容尾部）
+# - speed_up:  线性重采样加速 TTS 适应时间槽（默认，听感略有变化）
+# - video_slow: 不修改音频，视频慢放匹配（保真度最高，视频会变长）
+# - hybrid:    先加速至上限，剩余通过视频慢放补偿（推荐平衡方案）
+mode = "speed_up"
+# 加速上限倍率（仅 speed_up / hybrid 生效），范围 1.0–2.0，推荐 1.3
+max_speed_ratio = 1.3
+
+# ─── 说话人分离配置 ───────────────────────────────────────
+[diarization]
+# 是否启用说话人分离
+enabled = false
+# 引擎名称（speakrs, polyvoice, pyannote-rs）
+engine = "speakrs"
+# 是否使用 CoreML 加速（Apple Silicon）
+use_coreml = true
+
+# ─── 声音克隆配置 ─────────────────────────────────────────
+[cloning]
+# 是否启用声音克隆（默认启用）
+# 启用后，TTS 阶段会优先使用声音克隆合成（保留原说话人音色），
+# 克隆失败时自动降级到标准 TTS 引擎
+enabled = true
+# 引擎名称
+# - "indextts": IndexTTS-Rust 子进程引擎（Rust 原生，推荐）
+# - "qwen3-tts": qwen3_tts_rs 子进程引擎（MLX 加速）
+# - "subprocess": 通用子进程引擎（自定义 CLI 工具）
+# - "gpt-sovits": GPT-SoVITS API v2（HTTP 调用）
+# - "mock": 测试用 Mock 引擎
+engine = "indextts"
+# 参考音频目录路径（放置 reference.wav 作为克隆参考，或自动提取）
+reference_audio_dir = "./references"
+# 是否自动从视频中提取说话人参考音频
+auto_extract_speaker = true
+
+# ── 子进程克隆引擎配置（indextts / qwen3-tts / subprocess）──
+# CLI 工具可执行文件路径
+clone_command = "/usr/local/bin/indextts"
+# 模型路径（可选，取决于引擎要求）
+# clone_model_path = "/path/to/model"
+# 参数模板（占位符: {text}, {ref_audio}, {output}, {model}, {prompt_text}）
+# 留空时根据 engine 自动使用预设参数
+clone_args = ["synthesize", "--text", "{text}", "--voice", "{ref_audio}", "--output", "{output}"]
+# 子进程超时时间（秒）
+clone_timeout_secs = 120
+
+# ── GPT-SoVITS API v2 配置（engine = "gpt-sovits" 时使用）──
+# GPT-SoVITS API 服务端点（需先启动: python api_v2.py -a 127.0.0.1 -p 9880）
+api_url = "http://127.0.0.1:9880"
+# 请求超时时间（秒，克隆合成可能耗时较长）
+timeout_secs = 60
+# 参考音频的提示文本（参考音频中说的原文，零样本克隆的关键参数）
+prompt_text = "Hello, welcome to this video."
+# 参考音频提示文本的语言（en, zh, ja, ko 等）
+prompt_lang = "en"
+# 目标合成文本的语言（视频翻译场景通常为 zh = 中文配音）
+text_lang = "zh"
+# 文本分割方法（cut0 = 不分割, cut1 = 按标点, cut5 = 按句子）
+text_split_method = "cut5"
+# Top-K 采样参数
+top_k = 5
+# Top-P 采样参数
+top_p = 1.0
+# 采样温度（1.0 = 默认，较低值更稳定）
+temperature = 1.0
+# 重复惩罚（防止 GPT 模型重复生成）
+repetition_penalty = 1.35
+# GPT 模型权重路径（GPT-SoVITS 服务器端路径，可选）
+# gpt_model = "GPT_SoVITS/pretrained_models/s1bert25hz-2kh-longer-epoch=68e-step=50232.ckpt"
+# SoVITS 模型权重路径（GPT-SoVITS 服务器端路径，可选）
+# sovits_model = "GPT_SoVITS/pretrained_models/s2G488k.pth"
+
+# ── 参考音频提取增强配置 ─────────────────────────────────
+[cloning.voice_extractor]
+# 是否启用 ffmpeg 人声增强（高通+低通滤波，去除低频噪声和高频杂音）
+enable_enhancement = true
+# 是否启用静音修剪（裁剪音频首尾静音段）
+enable_silence_trim = true
+# 是否启用音量归一化（RMS 归一化到目标电平）
+enable_normalization = true
+# 静音检测阈值（dB，-40 表示 -40dB 以下为静音）
+silence_threshold_db = -40.0
+# 目标 RMS 电平（dBFS，-20 表示 -20dBFS）
+target_rms_db = -20.0
+# 最小参考音频时长（秒）
+min_duration_secs = 3.0
+# 最大参考音频时长（秒）
+max_duration_secs = 10.0
+# 理想参考音频时长（秒，选择片段时优先接近此值）
+ideal_duration_secs = 5.0
+
+# ─── 批量处理配置 ─────────────────────────────────────────
+[batch]
+# 最大并行任务数（默认 = CPU 核心数 - 1）
+max_concurrent = 3
+# 内存使用阈值百分比，超过时自动降低并发数
+memory_threshold = 80.0
+# 是否启用任务优先级调度
+enable_priority = true
+
+# ─── 检查点配置 ───────────────────────────────────────────
+[checkpoint]
+# 是否启用断点续传
+enabled = true
+# 检查点文件存储目录
+dir = "~/.cache/video-translator/checkpoints"
+# 检查点保留天数（超过后自动清理）
+retention_days = 7
+
+# ─── 性能调优配置 ─────────────────────────────────────────
+[performance]
+# 是否启用性能分析
+enable_profiling = false
+# 火焰图输出路径
+flamegraph_output = "./flamegraph.svg"
+
+# ─── 全局配置 ─────────────────────────────────────────────
+# 输出目录路径
+output_dir = "./output"
+# 最大并发任务数
+max_concurrent_tasks = 4

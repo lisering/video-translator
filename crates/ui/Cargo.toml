@@ -1,0 +1,32 @@
+[package]
+name = "vt-ui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Tauri desktop UI for Video Translator"
+
+[lib]
+name = "vt_ui"
+path = "src/lib.rs"
+
+[[bin]]
+name = "vt-ui"
+path = "src/main.rs"
+
+[dependencies]
+vt-core = { path = "../core" }
+tauri = { workspace = true }
+tauri-plugin-dialog = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-appender = { workspace = true }
+uuid = { workspace = true }
+dirs = { workspace = true }
+tempfile = { workspace = true }
+toml = { workspace = true }
+
+[build-dependencies]
+tauri-build = { workspace = true }

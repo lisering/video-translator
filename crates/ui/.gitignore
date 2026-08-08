@@ -1,0 +1,9 @@
+# Node.js
+frontend/node_modules/
+frontend/.next/
+
+# Tauri build artifacts
+gen/
+
+# Rust
+/target

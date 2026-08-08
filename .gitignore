@@ -1,0 +1,39 @@
+# Rust
+/target/
+**/target/
+
+# Node.js / Next.js
+node_modules/
+.next/
+out/
+build/
+dist/
+
+# Model cache
+*.gguf
+*.bin
+*.onnx
+*.safetensors
+
+# Test outputs
+test_output/
+test_logs/
+test_reports/
+output/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+
+# Logs
+*.log

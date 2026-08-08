@@ -1,0 +1,287 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  # 缓存模型名称（与测试代码中一致）
+  WHISPER_MODEL: ggml-tiny.en.bin
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────
+  # 第一层：格式检查 + Clippy（无编译依赖，快速反馈）
+  # ──────────────────────────────────────────────────────────────────────
+  lint:
+    name: Fmt · Clippy
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Cargo registry & build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy (warnings as errors)
+        run: cargo clippy --workspace --all-features -- -D warnings
+
+  # ──────────────────────────────────────────────────────────────────────
+  # 第二层：快速单元测试（无需模型/网络，< 30s）
+  # ──────────────────────────────────────────────────────────────────────
+  unit-tests:
+    name: Unit Tests (fast)
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry & build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install FFmpeg
+        run: brew install ffmpeg
+
+      # 运行库内单元测试（覆盖所有 #[cfg(test)] 内联测试）
+      # 环境变量:
+      #   VT_SKIP_ASR_TESTS=1  — 跳过需要 Whisper 模型的测试
+      #   VT_SKIP_TTS_TESTS=1  — 跳过需要网络的 TTS 测试
+      #   TEST_QUICK=1         — 跳过慢速推理测试
+      - name: Run vt-core lib tests (all inline unit tests)
+        env:
+          VT_SKIP_ASR_TESTS: "1"
+          VT_SKIP_TTS_TESTS: "1"
+          TEST_QUICK: "1"
+        run: cargo test -p vt-core --lib --all-features
+
+      # 运行不依赖模型/网络的集成测试
+      - name: Run vt-core integration tests (no model, no network)
+        env:
+          VT_SKIP_ASR_TESTS: "1"
+          VT_SKIP_TTS_TESTS: "1"
+          TEST_QUICK: "1"
+        run: |
+          cargo test -p vt-core --test test_config --all-features
+          cargo test -p vt-core --test test_models --all-features
+          cargo test -p vt-core --test test_translate --all-features
+          cargo test -p vt-core --test test_offline_translation --all-features
+          cargo test -p vt-core --test test_terminology --all-features
+          cargo test -p vt-core --test test_checkpoint --all-features
+          cargo test -p vt-core --test test_batch --all-features
+          cargo test -p vt-core --test test_diarization --all-features
+          cargo test -p vt-core --test test_cloning --all-features
+          cargo test -p vt-core --test test_voice_clone --all-features
+
+      # macOS `say` 命令测试（无需网络，但需要 macOS 系统）
+      - name: Run TTS offline tests (macOS say)
+        env:
+          VT_SKIP_TTS_TESTS: "1"
+        run: |
+          cargo test -p vt-core --test test_tts_kokoroi --all-features
+          cargo test -p vt-core --test test_tts_quality --all-features
+          cargo test -p vt-core --test test_tts_voice --all-features
+
+      # vt-tts 引擎测试（纯 CPU 逻辑，无需 Metal/模型）
+      - name: Run vt-tts tests (CPU mode)
+        run: |
+          cargo test -p vt-tts --no-default-features --features "cpu,accelerate" --lib
+          cargo test -p vt-tts --no-default-features --features "cpu,accelerate" --test test_proptest
+          cargo test -p vt-tts --no-default-features --features "cpu,accelerate" --test test_audio_quality
+
+  # ──────────────────────────────────────────────────────────────────────
+  # 第三层：集成测试（需要模型 + FFmpeg，~2-3min）
+  # ──────────────────────────────────────────────────────────────────────
+  integration-tests:
+    name: Integration Tests (model + media)
+    runs-on: macos-14
+    needs: [lint, unit-tests]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry & build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install FFmpeg
+        run: brew install ffmpeg
+
+      # 缓存 Whisper 模型文件，避免每次 CI 重新下载（~75MB）
+      - name: Cache Whisper model
+        id: cache-model
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/video-translator/models
+          key: whisper-model-${{ env.WHISPER_MODEL }}
+
+      - name: Run ASR integration tests
+        env:
+          # 不设置 VT_SKIP_ASR_TESTS，确保模型测试运行
+          VT_SKIP_TTS_TESTS: "1"
+        run: cargo test -p vt-core --test test_asr --all-features -- --nocapture
+
+      - name: Run Media integration tests
+        run: cargo test -p vt-core --test test_media --all-features -- --nocapture
+
+      - name: Run Pipeline integration tests
+        run: cargo test -p vt-core --test test_pipeline --all-features -- --nocapture
+
+  # ──────────────────────────────────────────────────────────────────────
+  # 第三层（并行）：vt-tts Metal GPU 测试（需要 Apple Silicon）
+  # ──────────────────────────────────────────────────────────────────────
+  tts-metal-tests:
+    name: vt-tts Metal Tests (GPU)
+    runs-on: macos-14
+    needs: [lint, unit-tests]
+    continue-on-error: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry & build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run vt-tts Metal GPU tests
+        run: |
+          cargo test -p vt-tts --no-default-features --features "metal,cli,accelerate" --lib
+          cargo test -p vt-tts --no-default-features --features "metal,cli,accelerate" --test test_metal -- --nocapture
+
+  # ──────────────────────────────────────────────────────────────────────
+  # 第三层（并行）：TTS 网络测试（需要网络连接）
+  # ──────────────────────────────────────────────────────────────────────
+  tts-tests:
+    name: TTS Tests (network)
+    runs-on: macos-14
+    needs: [lint, unit-tests]
+    continue-on-error: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry & build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install FFmpeg
+        run: brew install ffmpeg
+
+      # 缓存 TTS 合成结果（持久化缓存目录）
+      - name: Cache TTS audio
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/video-translator/test_tts_cache
+          key: tts-cache-${{ hashFiles('crates/core/tests/test_tts.rs') }}
+
+      - name: Run TTS tests
+        run: cargo test -p vt-core --test test_tts --all-features -- --nocapture
+
+  # ──────────────────────────────────────────────────────────────────────
+  # 第四层：构建 CLI Release 二进制
+  # ──────────────────────────────────────────────────────────────────────
+  build-cli:
+    name: Build CLI
+    runs-on: macos-14
+    needs: [lint, unit-tests]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry & build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build CLI release binary
+        run: cargo build --release -p vt-cli
+
+      - name: Verify CLI binary
+        run: |
+          ./target/release/vt --version
+          ./target/release/vt --help
+
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vt-cli-aarch64
+          path: target/release/vt
+          retention-days: 14
+
+  # ──────────────────────────────────────────────────────────────────────
+  # 第四层（并行）：构建 Tauri 桌面应用
+  # ──────────────────────────────────────────────────────────────────────
+  build-tauri:
+    name: Build Tauri Desktop App
+    runs-on: macos-14
+    needs: [lint, unit-tests]
+    continue-on-error: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --debug
+
+      - name: Cache Cargo registry & build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install frontend dependencies
+        run: |
+          cd crates/ui/frontend
+          npm ci || npm install
+
+      - name: Build frontend
+        run: cd crates/ui/frontend && npm run build
+
+      - name: Build Tauri app
+        run: cargo tauri build
+
+      - name: Upload .app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-translator-app
+          path: target/release/bundle/macos/*.app
+          retention-days: 14
+
+      - name: Upload .dmg artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-translator-dmg
+          path: target/release/bundle/dmg/*.dmg
+          retention-days: 14
