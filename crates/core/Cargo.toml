@@ -41,7 +41,7 @@ sysinfo = { workspace = true }
 chrono = { workspace = true }
 dirs = { workspace = true }
 # Random number generation for TTS sampling (MOSS-TTS module)
-rand = "0.8"
+rand = "0.9"
 # ONNX Runtime for Kokoro-82M inference (optional)
 # 启用方式: cargo build --features kokoro-onnx
 ort = { version = "2.0.0-rc.13", optional = true }
