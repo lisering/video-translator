@@ -28,7 +28,7 @@ hound = { workspace = true }
 ureq = { workspace = true }
 regex = { workspace = true }
 sha2 = { workspace = true }
-md5 = "0.7"
+md5 = "0.8"
 hex = "0.4"
 uuid = { workspace = true }
 rayon = { workspace = true }
