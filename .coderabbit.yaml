@@ -1,0 +1,42 @@
+# CodeRabbit AI Code Review Configuration
+# https://coderabbit.ai
+#
+# CodeRabbit 会在每个 PR 上自动运行 AI 审查
+
+reviews:
+  review_status: committed
+  auto_review:
+    enabled: true
+    drafts: false
+  path_filters:
+    - "!**/*.lock"
+    - "!**/Cargo.lock"
+    - "!**/package-lock.json"
+    - "!**/*.md"
+    - "crates/**"
+    - "scripts/**"
+  instructions: |
+    Review the code for:
+    1. **Test coverage**: Every new function must have tests. Flag functions without tests.
+    2. **Error handling**: Check for unwrap() and expect() in production code. Suggest proper error handling.
+    3. **Resource safety**: Check for file handles, network connections, subprocess spawns without proper cleanup.
+    4. **Type safety**: Prefer Rust's type system over runtime checks.
+    5. **Documentation**: Public functions should have doc comments.
+    6. **Performance**: Flag obvious O(n²) or unnecessary allocations.
+    7. **Security**: Check for command injection, path traversal, and unsafe deserialization.
+    8. **Concurrency**: Check for data races and deadlocks in async/multi-threaded code.
+
+chat:
+  auto_reply: true
+
+path_filters:
+  - "!**/target/**"
+  - "!**/node_modules/**"
+  - "!**/.next/**"
+  - "!**/out/**"
+  - "!**/*.wav"
+  - "!**/*.mp4"
+  - "!**/*.gguf"
+  - "!**/*.bin"
+  - "!**/*.onnx"
+  - "!**/*.safetensors"
