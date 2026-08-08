@@ -128,7 +128,7 @@ jobs:
       # 缓存 Whisper 模型文件，避免每次 CI 重新下载（~75MB）
       - name: Cache Whisper model
         id: cache-model
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/Library/Caches/video-translator/models
           key: whisper-model-${{ env.WHISPER_MODEL }}
@@ -193,7 +193,7 @@ jobs:
 
       # 缓存 TTS 合成结果（持久化缓存目录）
       - name: Cache TTS audio
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/Library/Caches/video-translator/test_tts_cache
           key: tts-cache-${{ hashFiles('crates/core/tests/test_tts.rs') }}
