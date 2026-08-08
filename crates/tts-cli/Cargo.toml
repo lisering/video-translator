@@ -39,7 +39,7 @@ hound = { workspace = true }
 rustfft = "6.2"
 
 # Tokenization
-tokenizers = "0.22"
+tokenizers = "0.23"
 
 # Model loading
 safetensors = "0.8"
