@@ -36,7 +36,7 @@ tauri-build = "2"
 tauri-plugin-dialog = "2"
 tracing-appender = "0.2"
 dirs = "5"
-sysinfo = "0.32"
+sysinfo = "0.39"
 chrono = { version = "0.4", features = ["serde"] }
 criterion = { version = "0.5", features = ["html_reports"] }
 proptest = "1.5"
