@@ -228,7 +228,7 @@ jobs:
           ./target/release/vt --help
 
       - name: Upload CLI artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: vt-cli-aarch64
           path: target/release/vt
@@ -273,14 +273,14 @@ jobs:
         run: cargo tauri build
 
       - name: Upload .app artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: video-translator-app
           path: target/release/bundle/macos/*.app
           retention-days: 14
 
       - name: Upload .dmg artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: video-translator-dmg
           path: target/release/bundle/dmg/*.dmg
